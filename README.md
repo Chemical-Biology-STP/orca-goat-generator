@@ -5,6 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![ORCA Version](https://img.shields.io/badge/ORCA-6.0%2B-blue)](https://orcaforum.kofo.mpg.de/)
 [![Shell](https://img.shields.io/badge/Shell-Bash-green)](https://www.gnu.org/software/bash/)
+[![Python](https://img.shields.io/badge/Python-3.6%2B-blue)](https://www.python.org/)
 
 Generate production-ready ORCA GOAT input files and SLURM batch scripts for conformational searches of cyclic peptides and other molecules. Perfect for beginners and experienced users alike!
 
@@ -16,6 +17,7 @@ Generate production-ready ORCA GOAT input files and SLURM batch scripts for conf
 - [Features](#features)
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
+- [Bash vs Python Version](#bash-vs-python-version)
 - [Quick Start](#quick-start)
 - [Step-by-Step Tutorial](#step-by-step-tutorial)
 - [Understanding GOAT Variants](#understanding-goat-variants)
@@ -68,6 +70,7 @@ This tool helps you create input files for **ORCA's GOAT** (Global Optimizer Alg
 - ORCA 6.0 or later installed
 - SLURM job scheduler
 - Bash shell (usually default)
+- Python 3.6+ (optional, for Python version of the script)
 
 **Don't worry if you're new to HPC!** This guide will walk you through everything step-by-step.
 
@@ -107,10 +110,11 @@ unzip main.zip
 cd orca-goat-generator-main
 ```
 
-### Step 3: Make the Script Executable
+### Step 3: Make the Scripts Executable
 
 ```bash
 chmod +x generate_goat_inputs.sh
+chmod +x generate_goat_inputs.py
 ```
 
 ### Step 4: Verify Installation
@@ -120,9 +124,43 @@ ls -lh
 ```
 
 You should see:
-- `generate_goat_inputs.sh` (the main script)
+- `generate_goat_inputs.sh` (bash version)
+- `generate_goat_inputs.py` (Python version)
 - `xyzs/` (folder for your molecule files)
 - `README.md` (this file)
+
+---
+
+## 🔀 Bash vs Python Version
+
+This tool comes in two versions with **identical functionality**:
+
+### Bash Version (`generate_goat_inputs.sh`)
+✅ **Pros:**
+- No dependencies (bash is always available on HPC)
+- Traditional shell scripting
+- Slightly faster startup
+
+❌ **Cons:**
+- Less readable code
+- Harder to extend/modify
+
+### Python Version (`generate_goat_inputs.py`)
+✅ **Pros:**
+- More readable and maintainable code
+- Easier to extend with custom features
+- Better error handling
+- Cross-platform compatible
+
+❌ **Cons:**
+- Requires Python 3.6+ (usually available on HPC)
+
+**Which should you use?**
+- **New users**: Either works great! Try Python if you're comfortable with it.
+- **HPC veterans**: Use bash if you prefer traditional shell scripts.
+- **Developers**: Use Python for easier customization.
+
+Both versions produce identical output files and have the same interactive prompts.
 
 ---
 
@@ -149,9 +187,21 @@ H  -4.23539  -0.01923   0.27823
 
 ### 2. Run the Generator
 
+Choose either the bash or Python version:
+
+**Option A: Bash version (traditional)**
 ```bash
 ./generate_goat_inputs.sh
 ```
+
+**Option B: Python version (recommended)**
+```bash
+python3 generate_goat_inputs.py
+# or
+./generate_goat_inputs.py
+```
+
+Both versions have identical functionality - use whichever you prefer!
 
 ### 3. Answer the Prompts
 
@@ -211,8 +261,14 @@ cd ~/orca-goat-generator
 
 **Step 4: Run the Generator**
 
+Choose your preferred version:
+
 ```bash
+# Bash version
 ./generate_goat_inputs.sh
+
+# OR Python version
+python3 generate_goat_inputs.py
 ```
 
 **Step 5: Answer the Questions**
@@ -361,6 +417,10 @@ Choose the right variant for your needs:
 ```bash
 # Solution: Make the script executable
 chmod +x generate_goat_inputs.sh
+chmod +x generate_goat_inputs.py
+
+# Or run Python version directly
+python3 generate_goat_inputs.py
 ```
 
 #### ❌ "No such file or directory: xyzs/"
@@ -431,7 +491,10 @@ cat slurm-*.out
 ### Example 1: Quick Conformational Search (Beginner)
 
 ```bash
+# Use either version
 ./generate_goat_inputs.sh
+# or
+python3 generate_goat_inputs.py
 
 # Answers:
 Selection: 1                    # First XYZ file
@@ -448,7 +511,10 @@ cd goat_inputs
 ### Example 2: Complete Ensemble in Water (Intermediate)
 
 ```bash
+# Use either version
 ./generate_goat_inputs.sh
+# or
+python3 generate_goat_inputs.py
 
 # Answers:
 Selection: all                  # All XYZ files
@@ -469,7 +535,10 @@ cd goat_inputs
 ### Example 3: DFT Refinement (Advanced)
 
 ```bash
+# Use either version
 ./generate_goat_inputs.sh
+# or
+python3 generate_goat_inputs.py
 
 # Answers:
 Selection: 1
