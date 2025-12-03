@@ -94,7 +94,7 @@ Once connected to the cluster, download the tool:
 cd ~
 
 # Clone the repository
-git clone https://github.com/yourusername/orca-goat-generator.git
+git clone https://github.com/Chemical-Biology-STP/orca-goat-generator.git
 
 # Enter the directory
 cd orca-goat-generator
@@ -102,7 +102,7 @@ cd orca-goat-generator
 
 **Don't have git?** Download manually:
 ```bash
-wget https://github.com/yourusername/orca-goat-generator/archive/main.zip
+wget https://github.com/Chemical-Biology-STP/orca-goat-generator/archive/main.zip
 unzip main.zip
 cd orca-goat-generator-main
 ```
