@@ -334,7 +334,40 @@ def main():
     # Solvent settings
     print()
     print_info("=== Solvent Settings ===")
-    if prompt_yes_no("Use implicit solvation (CPCM)?", "n"):
+    if prompt_yes_no("Use implicit solvation?", "n"):
+        print()
+        
+        # Check if using XTB method
+        is_xtb = 'XTB' in config['METHOD'].upper()
+        
+        if is_xtb:
+            print_warning("XTB methods detected!")
+            print("  XTB is compatible with: ALPB, ddCOSMO, CPCMX")
+            print("  XTB is NOT compatible with: CPCM, SMD")
+            print()
+            print("  Recommended solvation models for XTB:")
+            print("    ALPB     - Analytical Linearized Poisson-Boltzmann (recommended)")
+            print("    ddCOSMO  - Domain-decomposition COSMO")
+            print("    CPCMX    - Extended CPCM for XTB")
+            print()
+            solv_model = prompt_with_default("Solvation model", "ALPB")
+            
+            # Validate solvation model
+            valid_xtb_models = ['ALPB', 'DDCOSMO', 'CPCMX']
+            if solv_model.upper() not in valid_xtb_models:
+                print_warning(f"'{solv_model}' may not be compatible with XTB!")
+                print_warning("Recommended: ALPB, ddCOSMO, or CPCMX")
+                if not prompt_yes_no(f"Continue with {solv_model} anyway?", "n"):
+                    solv_model = "ALPB"
+                    print_info(f"Changed to {solv_model}")
+        else:
+            print("  Available solvation models:")
+            print("    CPCM     - Conductor-like Polarizable Continuum Model (default)")
+            print("    SMD      - Solvation Model based on Density")
+            print("    COSMO    - Conductor-like Screening Model")
+            print()
+            solv_model = prompt_with_default("Solvation model", "CPCM")
+        
         print()
         print("  Common solvents:")
         print("    Water, Acetone, Acetonitrile, Ammonia, Benzene, CCl4,")
@@ -342,7 +375,7 @@ def main():
         print("    Hexane, Methanol, Octanol, Pyridine, THF, Toluene")
         print()
         solvent_name = prompt_with_default("Solvent name", "Water")
-        config['SOLVENT_KEYWORD'] = f"CPCM({solvent_name})"
+        config['SOLVENT_KEYWORD'] = f"{solv_model}({solvent_name})"
     else:
         config['SOLVENT_KEYWORD'] = ""
     
@@ -370,7 +403,32 @@ def main():
     print()
     print_info("=== Parallelization Settings ===")
     config['NPROCS'] = prompt_with_default("Total number of processors", "200")
-    config['NWORKERS'] = prompt_with_default("Number of workers", "25")
+    
+    # NWORKERS validation for GOAT-ENTROPY
+    if config['GOAT_TYPE'] == 'GOAT-ENTROPY':
+        print()
+        print_warning("GOAT-ENTROPY uses 4 temperature replicas")
+        print_info("NWORKERS must be divisible by 4")
+        print("  Recommended values: 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, ...")
+        print()
+        
+        while True:
+            nworkers_str = prompt_with_default("Number of workers", "24")
+            try:
+                nworkers = int(nworkers_str)
+                if nworkers % 4 == 0:
+                    config['NWORKERS'] = nworkers_str
+                    break
+                else:
+                    print_error(f"NWORKERS ({nworkers}) must be divisible by 4!")
+                    # Suggest nearest valid value
+                    suggested = ((nworkers + 2) // 4) * 4
+                    print_info(f"Suggested value: {suggested}")
+            except ValueError:
+                print_error("Please enter a valid integer")
+    else:
+        config['NWORKERS'] = prompt_with_default("Number of workers", "25")
+    
     config['MAXCORESOPT'] = prompt_with_default("Max cores per optimization", "32")
     
     # GOAT algorithm parameters
@@ -442,6 +500,49 @@ def main():
     print()
     output_dir_str = prompt_with_default("Output directory for generated files", "goat_inputs")
     output_dir = Path(output_dir_str)
+    
+    # Validation summary
+    print()
+    print("=========================================")
+    print_info("=== Configuration Validation ===")
+    print("=========================================")
+    
+    validation_passed = True
+    
+    # Check XTB + solvation compatibility
+    is_xtb = 'XTB' in config['METHOD'].upper()
+    if is_xtb and config['SOLVENT_KEYWORD']:
+        solv_model = config['SOLVENT_KEYWORD'].split('(')[0].upper()
+        if solv_model in ['CPCM', 'SMD']:
+            print_error(f"INCOMPATIBLE: {config['METHOD']} with {solv_model}")
+            print_error("XTB methods require ALPB, ddCOSMO, or CPCMX")
+            validation_passed = False
+        else:
+            print_success(f"Solvation model {solv_model} is compatible with {config['METHOD']}")
+    
+    # Check NWORKERS for GOAT-ENTROPY
+    if config['GOAT_TYPE'] == 'GOAT-ENTROPY':
+        nworkers = int(config['NWORKERS'])
+        if nworkers % 4 != 0:
+            print_error(f"INVALID: NWORKERS ({nworkers}) must be divisible by 4 for GOAT-ENTROPY")
+            validation_passed = False
+        else:
+            print_success(f"NWORKERS ({nworkers}) is valid for GOAT-ENTROPY (divisible by 4)")
+    
+    # Check MAXCORESOPT vs NPROCS
+    maxcoresopt = int(config['MAXCORESOPT'])
+    nprocs = int(config['NPROCS'])
+    if maxcoresopt > nprocs:
+        print_warning(f"MAXCORESOPT ({maxcoresopt}) > NPROCS ({nprocs})")
+        print_warning("This will be automatically reduced by ORCA")
+    
+    print()
+    
+    if not validation_passed:
+        print_error("Validation failed! Please fix the issues above.")
+        if not prompt_yes_no("Continue anyway? (NOT RECOMMENDED)", "n"):
+            print_warning("Aborting generation")
+            sys.exit(1)
     
     # Create output directory
     output_dir.mkdir(parents=True, exist_ok=True)

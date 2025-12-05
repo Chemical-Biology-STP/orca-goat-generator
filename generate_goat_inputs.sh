@@ -284,8 +284,42 @@ prompt_with_default "Computational method (e.g., XTB2, R2SCAN-3C, PBE)" "XTB2" M
 # Solvent settings
 echo ""
 print_info "=== Solvent Settings ==="
-if prompt_yes_no "Use implicit solvation (CPCM)?" "n"; then
+if prompt_yes_no "Use implicit solvation?" "n"; then
     USE_SOLVENT="true"
+    echo ""
+    
+    # Check if using XTB method
+    if [[ "${METHOD^^}" == *"XTB"* ]]; then
+        print_warning "XTB methods detected!"
+        echo "  XTB is compatible with: ALPB, ddCOSMO, CPCMX"
+        echo "  XTB is NOT compatible with: CPCM, SMD"
+        echo ""
+        echo "  Recommended solvation models for XTB:"
+        echo "    ALPB     - Analytical Linearized Poisson-Boltzmann (recommended)"
+        echo "    ddCOSMO  - Domain-decomposition COSMO"
+        echo "    CPCMX    - Extended CPCM for XTB"
+        echo ""
+        prompt_with_default "Solvation model" "ALPB" SOLV_MODEL
+        
+        # Validate solvation model
+        SOLV_MODEL_UPPER="${SOLV_MODEL^^}"
+        if [[ "$SOLV_MODEL_UPPER" != "ALPB" ]] && [[ "$SOLV_MODEL_UPPER" != "DDCOSMO" ]] && [[ "$SOLV_MODEL_UPPER" != "CPCMX" ]]; then
+            print_warning "'$SOLV_MODEL' may not be compatible with XTB!"
+            print_warning "Recommended: ALPB, ddCOSMO, or CPCMX"
+            if ! prompt_yes_no "Continue with $SOLV_MODEL anyway?" "n"; then
+                SOLV_MODEL="ALPB"
+                print_info "Changed to $SOLV_MODEL"
+            fi
+        fi
+    else
+        echo "  Available solvation models:"
+        echo "    CPCM     - Conductor-like Polarizable Continuum Model (default)"
+        echo "    SMD      - Solvation Model based on Density"
+        echo "    COSMO    - Conductor-like Screening Model"
+        echo ""
+        prompt_with_default "Solvation model" "CPCM" SOLV_MODEL
+    fi
+    
     echo ""
     echo "  Common solvents:"
     echo "    Water, Acetone, Acetonitrile, Ammonia, Benzene, CCl4,"
@@ -293,7 +327,7 @@ if prompt_yes_no "Use implicit solvation (CPCM)?" "n"; then
     echo "    Hexane, Methanol, Octanol, Pyridine, THF, Toluene"
     echo ""
     prompt_with_default "Solvent name" "Water" SOLVENT_NAME
-    SOLVENT_KEYWORD="CPCM(${SOLVENT_NAME})"
+    SOLVENT_KEYWORD="${SOLV_MODEL}(${SOLVENT_NAME})"
 else
     USE_SOLVENT="false"
     SOLVENT_KEYWORD=""
@@ -324,7 +358,31 @@ fi
 echo ""
 print_info "=== Parallelization Settings ==="
 prompt_with_default "Total number of processors" "200" NPROCS
-prompt_with_default "Number of workers" "25" NWORKERS
+
+# NWORKERS validation for GOAT-ENTROPY
+if [ "$GOAT_TYPE" == "GOAT-ENTROPY" ]; then
+    echo ""
+    print_warning "GOAT-ENTROPY uses 4 temperature replicas"
+    print_info "NWORKERS must be divisible by 4"
+    echo "  Recommended values: 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, ..."
+    echo ""
+    
+    while true; do
+        prompt_with_default "Number of workers" "24" NWORKERS
+        remainder=$((NWORKERS % 4))
+        if [ $remainder -eq 0 ]; then
+            break
+        else
+            print_error "NWORKERS ($NWORKERS) must be divisible by 4!"
+            # Suggest nearest valid value
+            suggested=$(( ((NWORKERS + 2) / 4) * 4 ))
+            print_info "Suggested value: $suggested"
+        fi
+    done
+else
+    prompt_with_default "Number of workers" "25" NWORKERS
+fi
+
 prompt_with_default "Max cores per optimization" "32" MAXCORESOPT
 
 # GOAT algorithm parameters
@@ -419,6 +477,53 @@ prompt_with_default "RSH command" "sh" RSH_COMMAND
 # Output directory
 echo ""
 prompt_with_default "Output directory for generated files" "goat_inputs" OUTPUT_DIR
+
+# Validation summary
+echo ""
+echo "========================================="
+print_info "=== Configuration Validation ==="
+echo "========================================="
+
+VALIDATION_PASSED=true
+
+# Check XTB + solvation compatibility
+if [[ "${METHOD^^}" == *"XTB"* ]] && [ -n "$SOLVENT_KEYWORD" ]; then
+    SOLV_MODEL=$(echo "$SOLVENT_KEYWORD" | cut -d'(' -f1 | tr '[:lower:]' '[:upper:]')
+    if [[ "$SOLV_MODEL" == "CPCM" ]] || [[ "$SOLV_MODEL" == "SMD" ]]; then
+        print_error "INCOMPATIBLE: $METHOD with $SOLV_MODEL"
+        print_error "XTB methods require ALPB, ddCOSMO, or CPCMX"
+        VALIDATION_PASSED=false
+    else
+        print_success "Solvation model $SOLV_MODEL is compatible with $METHOD"
+    fi
+fi
+
+# Check NWORKERS for GOAT-ENTROPY
+if [ "$GOAT_TYPE" == "GOAT-ENTROPY" ]; then
+    remainder=$((NWORKERS % 4))
+    if [ $remainder -ne 0 ]; then
+        print_error "INVALID: NWORKERS ($NWORKERS) must be divisible by 4 for GOAT-ENTROPY"
+        VALIDATION_PASSED=false
+    else
+        print_success "NWORKERS ($NWORKERS) is valid for GOAT-ENTROPY (divisible by 4)"
+    fi
+fi
+
+# Check MAXCORESOPT vs NPROCS
+if [ $MAXCORESOPT -gt $NPROCS ]; then
+    print_warning "MAXCORESOPT ($MAXCORESOPT) > NPROCS ($NPROCS)"
+    print_warning "This will be automatically reduced by ORCA"
+fi
+
+echo ""
+
+if [ "$VALIDATION_PASSED" = false ]; then
+    print_error "Validation failed! Please fix the issues above."
+    if ! prompt_yes_no "Continue anyway? (NOT RECOMMENDED)" "n"; then
+        print_warning "Aborting generation"
+        exit 1
+    fi
+fi
 
 # Create output directory
 mkdir -p "$OUTPUT_DIR"
